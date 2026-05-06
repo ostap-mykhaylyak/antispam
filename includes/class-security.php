@@ -167,6 +167,10 @@ class ASG_Security {
             return;
         }
 
+        if ( ! self::table_exists() ) {
+            return;
+        }
+
         global $wpdb;
         $table_name = $wpdb->prefix . 'asg_logs';
 
