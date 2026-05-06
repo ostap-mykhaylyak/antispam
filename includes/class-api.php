@@ -139,7 +139,7 @@ class ASG_API {
             'timeout'     => 10,
             'redirection' => 5,
             'httpversion' => '1.1',
-            'user-agent'  => 'AntiSpam/' . OSTAP_ASG_VERSION . '; ' . get_bloginfo( 'url' ),
+            'user-agent'  => 'AntiSpam/' . ASG_VERSION . '; ' . get_bloginfo( 'url' ),
         );
 
         $response = wp_remote_get( $url, $args );
