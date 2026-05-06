@@ -152,7 +152,7 @@ class ASG_BruteForce {
      *  Azione wp_login_failed — incrementa contatori
      * ------------------------------------------------------------------ */
 
-    public function on_login_failed( $username, $error ) {
+    public function on_login_failed( $username, $error = null ) {
         $ip = $this->get_ip();
 
         // Incrementa tentativi per IP
@@ -281,14 +281,15 @@ class ASG_BruteForce {
     }
 
     /**
-     * Log nella tabella asg_logs
+     * Log nella tabella asg_logs.
+     *
+     * Nota: non usiamo table_exists_public() come guard perché la tabella è
+     * garantita da maybe_upgrade() ad ogni caricamento del plugin.
+     * Verifichiamo l'esistenza solo se wpdb->insert() fallisce, per evitare
+     * chiamate SHOW TABLES ad ogni tentativo di login.
      */
     private function log_bf_attempt( $ip, $username, $action, $duration = 0 ) {
         if ( empty( $this->options['log_enabled'] ) ) {
-            return;
-        }
-
-        if ( ! ASG_Security::table_exists_public() ) {
             return;
         }
 
@@ -299,7 +300,11 @@ class ASG_BruteForce {
             ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) )
             : '';
 
-        $wpdb->insert(
+        // Suppress wpdb errors to avoid output-before-headers issues;
+        // we handle the error ourselves below.
+        $suppress = $wpdb->suppress_errors( true );
+
+        $inserted = $wpdb->insert(
             $table_name,
             array(
                 'ip_address' => $ip,
@@ -314,6 +319,54 @@ class ASG_BruteForce {
             ),
             array( '%s', '%s', '%s', '%s', '%d', '%f', '%s', '%s', '%s' )
         );
+
+        $wpdb->suppress_errors( $suppress );
+
+        // Se l'insert fallisce (es. tabella mancante per qualsiasi ragione),
+        // forziamo la creazione e riproviamo una volta sola.
+        if ( false === $inserted ) {
+            if ( ! ASG_Security::table_exists_public() ) {
+                global $wpdb;
+                require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+                $charset_collate = $wpdb->get_charset_collate();
+                $sql = "CREATE TABLE IF NOT EXISTS {$table_name} (
+                    id bigint(20) NOT NULL AUTO_INCREMENT,
+                    timestamp datetime DEFAULT CURRENT_TIMESTAMP,
+                    ip_address varchar(100) NOT NULL,
+                    email varchar(255) DEFAULT NULL,
+                    username varchar(255) DEFAULT NULL,
+                    type varchar(50) NOT NULL,
+                    frequency int(11) DEFAULT 0,
+                    confidence float DEFAULT 0,
+                    action varchar(50) NOT NULL,
+                    source varchar(100) DEFAULT NULL,
+                    user_agent text DEFAULT NULL,
+                    PRIMARY KEY (id),
+                    KEY ip_address (ip_address),
+                    KEY timestamp (timestamp)
+                ) {$charset_collate};";
+                dbDelta( $sql );
+
+                // Secondo tentativo
+                $wpdb->suppress_errors( true );
+                $wpdb->insert(
+                    $table_name,
+                    array(
+                        'ip_address' => $ip,
+                        'email'      => '',
+                        'username'   => $username,
+                        'type'       => 'brute_force',
+                        'frequency'  => $duration > 0 ? (int) ceil( $duration / 60 ) : 0,
+                        'confidence' => 0,
+                        'action'     => $action,
+                        'source'     => 'login',
+                        'user_agent' => $user_agent,
+                    ),
+                    array( '%s', '%s', '%s', '%s', '%d', '%f', '%s', '%s', '%s' )
+                );
+                $wpdb->suppress_errors( false );
+            }
+        }
     }
 
     /* ------------------------------------------------------------------ *
