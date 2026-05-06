@@ -348,11 +348,25 @@ class ASG_Admin {
                             <td><?php echo esc_html( $log->frequency ); ?></td>
                             <td><?php echo esc_html( $log->confidence ); ?></td>
                             <td>
-                                <?php if ( 'blocked' === $log->action ) : ?>
-                                    <span style="color:#cc0000;font-weight:bold;"><?php esc_html_e( 'Bloccato', 'antispam' ); ?></span>
-                                <?php else : ?>
-                                    <span style="color:#008000;"><?php esc_html_e( 'Consentito', 'antispam' ); ?></span>
-                                <?php endif; ?>
+                                <?php
+                                $action_val = $log->action;
+                                $action_labels = array(
+                                    'blocked'        => array( __( 'Bloccato',       'antispam' ), '#cc0000' ),
+                                    'lockout_ip'     => array( __( 'Lockout IP',     'antispam' ), '#cc0000' ),
+                                    'lockout_user'   => array( __( 'Lockout User',   'antispam' ), '#cc0000' ),
+                                    'lockout_blocked'=> array( __( 'Bloccato (LO)',  'antispam' ), '#cc0000' ),
+                                    'on-hold'        => array( __( 'In attesa',      'antispam' ), '#b45309' ),
+                                    'failed'         => array( __( 'Fallito',        'antispam' ), '#b45309' ),
+                                    'allowed'        => array( __( 'Consentito',     'antispam' ), '#008000' ),
+                                );
+                                if ( isset( $action_labels[ $action_val ] ) ) {
+                                    list( $label, $color ) = $action_labels[ $action_val ];
+                                } else {
+                                    $label = esc_html( $action_val );
+                                    $color = '#555';
+                                }
+                                echo '<span style="color:' . esc_attr( $color ) . ';font-weight:bold;">' . esc_html( $label ) . '</span>';
+                                ?>
                             </td>
                             <td><?php echo esc_html( $log->source ); ?></td>
                         </tr>
