@@ -31,6 +31,12 @@ class ASG_BruteForce {
 
     private $options;
 
+    /**
+     * Flag statica per deduplicare wp_login_failed nella stessa request HTTP.
+     * WordPress può sparare l'hook più volte (xmlrpc, multi-provider authenticate).
+     */
+    private static $login_failed_processed = false;
+
     public function __construct() {
         $this->options = get_option( 'asg_settings', array() );
         $this->set_hooks();
@@ -153,6 +159,13 @@ class ASG_BruteForce {
      * ------------------------------------------------------------------ */
 
     public function on_login_failed( $username, $error = null ) {
+        // WordPress può sparare wp_login_failed più volte nella stessa request
+        // (es. xmlrpc, multi-provider authenticate). Elaboriamo solo la prima.
+        if ( self::$login_failed_processed ) {
+            return;
+        }
+        self::$login_failed_processed = true;
+
         $ip = $this->get_ip();
 
         // Incrementa tentativi per IP
