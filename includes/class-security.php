@@ -202,6 +202,10 @@ class ASG_Security {
     /**
      * Restituisce true se la tabella dei log esiste nel DB.
      */
+    public static function table_exists_public() {
+        return self::table_exists();
+    }
+
     private static function table_exists() {
         global $wpdb;
         $table_name = $wpdb->prefix . 'asg_logs';
