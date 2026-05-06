@@ -200,9 +200,20 @@ class ASG_Security {
     }
 
     /**
-     * Recupera i log paginati
+     * Restituisce true se la tabella dei log esiste nel DB.
      */
+    private static function table_exists() {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'asg_logs';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+        return $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) ) === $table_name;
+    }
+
     public static function get_logs( $per_page = 20, $page = 1 ) {
+        if ( ! self::table_exists() ) {
+            return array();
+        }
+
         global $wpdb;
         $table_name = $wpdb->prefix . 'asg_logs';
         $offset     = ( $page - 1 ) * $per_page;
@@ -220,6 +231,10 @@ class ASG_Security {
      * Conta il totale dei log
      */
     public static function count_logs() {
+        if ( ! self::table_exists() ) {
+            return 0;
+        }
+
         global $wpdb;
         $table_name = $wpdb->prefix . 'asg_logs';
         return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table_name}" );
@@ -229,8 +244,12 @@ class ASG_Security {
      * Svuota i log
      */
     public static function clear_logs() {
+        if ( ! self::table_exists() ) {
+            return;
+        }
+
         global $wpdb;
         $table_name = $wpdb->prefix . 'asg_logs';
-        $wpdb->query( "TRUNCATE TABLE {$table_name}" );
+        $wpdb->query( "TRUNCATE TABLE {$table_name}" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
     }
 }
