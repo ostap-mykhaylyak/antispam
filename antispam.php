@@ -51,6 +51,7 @@ class AntiSpam {
         require_once ASG_PLUGIN_DIR . 'includes/class-api.php';
         require_once ASG_PLUGIN_DIR . 'includes/class-security.php';
         require_once ASG_PLUGIN_DIR . 'includes/class-admin.php';
+        require_once ASG_PLUGIN_DIR . 'includes/class-brute-force.php';
 
         if ( $this->is_woocommerce_active() ) {
             require_once ASG_PLUGIN_DIR . 'includes/class-woocommerce.php';
@@ -88,6 +89,12 @@ class AntiSpam {
             'block_tor'           => false,
             'cache_duration'      => 3600,
             'log_enabled'         => true,
+            'bf_enabled'          => true,
+            'bf_max_attempts'     => 5,
+            'bf_window'           => 600,
+            'bf_lockout_duration' => 900,
+            'bf_lockout_max'      => 86400,
+            'bf_notify_admin'     => true,
         );
 
         add_option( 'asg_settings', $default_options );
@@ -123,6 +130,12 @@ class AntiSpam {
                     'block_tor'            => false,
                     'cache_duration'       => 3600,
                     'log_enabled'          => true,
+                    'bf_enabled'          => true,
+                    'bf_max_attempts'     => 5,
+                    'bf_window'           => 600,
+                    'bf_lockout_duration' => 900,
+                    'bf_lockout_max'      => 86400,
+                    'bf_notify_admin'     => true,
                 );
                 add_option( 'asg_settings', $default_options );
             }
@@ -168,6 +181,7 @@ class AntiSpam {
     public function init_components() {
         new ASG_API();
         new ASG_Security();
+        new ASG_BruteForce();
         new ASG_Admin();
 
         if ( $this->is_woocommerce_active() ) {
