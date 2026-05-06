@@ -279,7 +279,24 @@ class ASG_Admin {
         }
         check_admin_referer( 'asg_clear_logs_nonce' );
         ASG_Security::clear_logs();
-        wp_redirect( add_query_arg( array( 'page' => 'antispam-guard-logs', 'cleared' => '1' ), admin_url( 'admin.php' ) ) );
+
+        $redirect_url = add_query_arg(
+            array( 'page' => 'antispam-guard-logs', 'cleared' => '1' ),
+            admin_url( 'admin.php' )
+        );
+
+        // Redirect sicuro: usa l'header HTTP se possibile, altrimenti JS + meta.
+        if ( ! headers_sent() ) {
+            wp_redirect( $redirect_url );
+            exit;
+        }
+
+        // Fallback quando l'output è già iniziato (es. errori DB stampati da WordPress).
+        printf(
+            '<script>window.location.href = %s;</script><noscript><meta http-equiv="refresh" content="0;url=%s"></noscript>',
+            wp_json_encode( $redirect_url ),
+            esc_url( $redirect_url )
+        );
         exit;
     }
 
