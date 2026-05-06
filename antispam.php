@@ -127,6 +127,7 @@ class AntiSpam {
 
     public function init_components() {
         new ASG_API();
+        new ASG_Security();
         new ASG_Admin();
 
         if ( $this->is_woocommerce_active() ) {
