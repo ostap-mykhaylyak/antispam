@@ -128,6 +128,76 @@ class ASG_Admin {
             array( 'id' => 'cache_duration', 'min' => 60, 'max' => 86400,
                    'desc' => __( 'Tempo di cache dei risultati API (default: 3600)', 'antispam' ) )
         );
+
+        // Sezione Brute Force
+        add_settings_section(
+            'asg_bruteforce',
+            __( 'Protezione Brute Force', 'antispam' ),
+            array( $this, 'render_bf_section_desc' ),
+            'antispam-guard'
+        );
+
+        add_settings_field(
+            'asg_bf_enabled',
+            __( 'Abilita protezione brute force', 'antispam' ),
+            array( $this, 'render_checkbox_field' ),
+            'antispam-guard',
+            'asg_bruteforce',
+            array( 'id' => 'bf_enabled' )
+        );
+
+        add_settings_field(
+            'asg_bf_notify_admin',
+            __( 'Notifica admin al lockout', 'antispam' ),
+            array( $this, 'render_checkbox_field' ),
+            'antispam-guard',
+            'asg_bruteforce',
+            array( 'id' => 'bf_notify_admin' )
+        );
+
+        add_settings_field(
+            'asg_bf_max_attempts',
+            __( 'Tentativi prima del blocco', 'antispam' ),
+            array( $this, 'render_number_field' ),
+            'antispam-guard',
+            'asg_bruteforce',
+            array( 'id' => 'bf_max_attempts', 'min' => 1, 'max' => 100,
+                   'desc' => __( 'Numero di tentativi falliti prima di bloccare IP o username (default: 5)', 'antispam' ) )
+        );
+
+        add_settings_field(
+            'asg_bf_window',
+            __( 'Finestra di osservazione (secondi)', 'antispam' ),
+            array( $this, 'render_number_field' ),
+            'antispam-guard',
+            'asg_bruteforce',
+            array( 'id' => 'bf_window', 'min' => 60, 'max' => 3600,
+                   'desc' => __( 'Intervallo in cui vengono contati i tentativi (default: 600 = 10 min)', 'antispam' ) )
+        );
+
+        add_settings_field(
+            'asg_bf_lockout_duration',
+            __( 'Durata lockout base (secondi)', 'antispam' ),
+            array( $this, 'render_number_field' ),
+            'antispam-guard',
+            'asg_bruteforce',
+            array( 'id' => 'bf_lockout_duration', 'min' => 60, 'max' => 86400,
+                   'desc' => __( 'Durata del primo blocco. Raddoppia ad ogni recidiva (default: 900 = 15 min)', 'antispam' ) )
+        );
+
+        add_settings_field(
+            'asg_bf_lockout_max',
+            __( 'Durata lockout massima (secondi)', 'antispam' ),
+            array( $this, 'render_number_field' ),
+            'antispam-guard',
+            'asg_bruteforce',
+            array( 'id' => 'bf_lockout_max', 'min' => 900, 'max' => 604800,
+                   'desc' => __( 'Tetto massimo del lockout esponenziale (default: 86400 = 24 ore)', 'antispam' ) )
+        );
+    }
+
+    public function render_bf_section_desc() {
+        echo '<p>' . esc_html__( 'Blocca automaticamente IP e username dopo troppi tentativi di login falliti. Il lockout scala esponenzialmente: ogni recidiva raddoppia la durata del blocco.', 'antispam' ) . '</p>';
     }
 
     public function sanitize_settings( $input ) {
@@ -141,6 +211,16 @@ class ASG_Admin {
         $sanitized['frequency_threshold']  = max( 1, intval( $input['frequency_threshold'] ?? 1 ) );
         $sanitized['confidence_threshold']  = min( 100, max( 0, floatval( $input['confidence_threshold'] ?? 50 ) ) );
         $sanitized['cache_duration']        = max( 60, intval( $input['cache_duration'] ?? 3600 ) );
+
+        // Brute force
+        $bf_booleans = array( 'bf_enabled', 'bf_notify_admin' );
+        foreach ( $bf_booleans as $key ) {
+            $sanitized[ $key ] = ! empty( $input[ $key ] );
+        }
+        $sanitized['bf_max_attempts']     = max( 1,   intval( $input['bf_max_attempts']     ?? 5 ) );
+        $sanitized['bf_window']           = max( 60,  intval( $input['bf_window']           ?? 600 ) );
+        $sanitized['bf_lockout_duration'] = max( 60,  intval( $input['bf_lockout_duration'] ?? 900 ) );
+        $sanitized['bf_lockout_max']      = max( 900, intval( $input['bf_lockout_max']      ?? 86400 ) );
 
         return $sanitized;
     }
@@ -212,6 +292,32 @@ class ASG_Admin {
                 <?php submit_button( __( 'Svuota Log', 'antispam' ), 'delete', 'submit', false ); ?>
             </form>
 
+            <?php if ( ! empty( $_GET['cleared'] ) ) : ?>
+                <div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Log svuotato con successo.', 'antispam' ); ?></p></div>
+            <?php endif; ?>
+
+            <div style="background:#fff;border:1px solid #ccd0d4;padding:16px 20px;margin-bottom:20px;max-width:560px;">
+                <h2 style="margin-top:0;"><?php esc_html_e( 'Sblocco Manuale Brute Force', 'antispam' ); ?></h2>
+                <p><?php esc_html_e( 'Inserisci un IP o uno username per rimuoverne il lockout brute force.', 'antispam' ); ?></p>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+                    <div>
+                        <label for="asg-unlock-type"><strong><?php esc_html_e( 'Tipo', 'antispam' ); ?></strong></label><br>
+                        <select id="asg-unlock-type" style="height:30px;">
+                            <option value="ip"><?php esc_html_e( 'IP', 'antispam' ); ?></option>
+                            <option value="username"><?php esc_html_e( 'Username', 'antispam' ); ?></option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="asg-unlock-value"><strong><?php esc_html_e( 'Valore', 'antispam' ); ?></strong></label><br>
+                        <input type="text" id="asg-unlock-value" style="width:240px;" placeholder="es. 192.168.1.1">
+                    </div>
+                    <div>
+                        <button id="asg-unlock-btn" class="button button-primary"><?php esc_html_e( 'Sblocca', 'antispam' ); ?></button>
+                    </div>
+                </div>
+                <p id="asg-unlock-msg" style="margin-top:10px;font-weight:bold;"></p>
+            </div>
+
             <p><?php printf( esc_html__( 'Totale: %d voci', 'antispam' ), $total ); ?></p>
 
             <table class="widefat fixed striped">
@@ -270,6 +376,42 @@ class ASG_Admin {
                 </div>
             <?php endif; ?>
         </div>
+        <script>
+        (function(){
+            var btn = document.getElementById('asg-unlock-btn');
+            if (!btn) return;
+            btn.addEventListener('click', function(){
+                var type  = document.getElementById('asg-unlock-type').value;
+                var value = document.getElementById('asg-unlock-value').value.trim();
+                var msg   = document.getElementById('asg-unlock-msg');
+                if (!value) { msg.style.color='#cc0000'; msg.textContent = '<?php echo esc_js( __( 'Inserisci un valore.', 'antispam' ) ); ?>'; return; }
+                btn.disabled = true;
+                msg.style.color = '#555';
+                msg.textContent = '<?php echo esc_js( __( 'In corso…', 'antispam' ) ); ?>';
+                var data = new URLSearchParams();
+                data.append('action', 'asg_unlock');
+                data.append('nonce', '<?php echo esc_js( wp_create_nonce( 'asg_unlock_nonce' ) ); ?>');
+                data.append('lock_type', type);
+                data.append('lock_value', value);
+                fetch('<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>', {
+                    method: 'POST', body: data
+                })
+                .then(function(r){ return r.json(); })
+                .then(function(res){
+                    btn.disabled = false;
+                    if (res.success) {
+                        msg.style.color = '#008000';
+                        msg.textContent = res.data.message;
+                        document.getElementById('asg-unlock-value').value = '';
+                    } else {
+                        msg.style.color = '#cc0000';
+                        msg.textContent = res.data.message;
+                    }
+                })
+                .catch(function(){ btn.disabled=false; msg.style.color='#cc0000'; msg.textContent='Errore di rete.'; });
+            });
+        })();
+        </script>
         <?php
     }
 
