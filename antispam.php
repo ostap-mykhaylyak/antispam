@@ -65,6 +65,7 @@ class AntiSpam {
         add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
         register_activation_hook( __FILE__, array( $this, 'activate' ) );
         register_deactivation_hook( __FILE__, array( $this, 'deactivate' ) );
+        add_action( 'plugins_loaded', array( $this, 'maybe_upgrade' ) );
         add_action( 'init', array( $this, 'init_components' ) );
     }
 
@@ -97,6 +98,45 @@ class AntiSpam {
 
     public function deactivate() {
         flush_rewrite_rules();
+    }
+
+    /**
+     * Crea la tabella se mancante o aggiorna la struttura in caso di nuova versione.
+     * Viene eseguita ad ogni caricamento del plugin: sicura grazie a dbDelta.
+     */
+    public function maybe_upgrade() {
+        $installed_version = get_option( 'asg_version' );
+
+        if ( $installed_version !== ASG_VERSION || $this->logs_table_missing() ) {
+            $this->create_logs_table();
+            update_option( 'asg_version', ASG_VERSION );
+
+            // Assicura che le opzioni di default esistano (utile per installazioni via FTP)
+            if ( false === get_option( 'asg_settings' ) ) {
+                $default_options = array(
+                    'enabled'              => true,
+                    'check_ip'             => true,
+                    'check_email'          => true,
+                    'check_username'       => false,
+                    'frequency_threshold'  => 1,
+                    'confidence_threshold' => 50,
+                    'block_tor'            => false,
+                    'cache_duration'       => 3600,
+                    'log_enabled'          => true,
+                );
+                add_option( 'asg_settings', $default_options );
+            }
+        }
+    }
+
+    /**
+     * Controlla se la tabella dei log esiste fisicamente nel database.
+     */
+    private function logs_table_missing() {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'asg_logs';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+        return $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) ) !== $table_name;
     }
 
     private function create_logs_table() {
